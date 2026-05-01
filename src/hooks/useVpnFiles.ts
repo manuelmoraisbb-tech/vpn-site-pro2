@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import type { VpnFileRow } from '../lib/types';
 
-export function useVpnFiles() {
+export function useVpnFiles(adminMode = false) {
   const [rows, setRows] = useState<VpnFileRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -11,30 +11,7 @@ export function useVpnFiles() {
     let mounted = true;
 
     async function load() {
-      setLoading(true);
-      const { data, error } = await supabase
-        .from('vpn_files')
-        .select('*')
-        .order('display_order', { ascending: true })
-        .order('created_at', { ascending: false });
-
-      if (!mounted) return;
-      if (error) {
-        console.error('[v0] Failed to load vpn_files:', error.message);
-        setError(error.message);
-      } else {
-        setRows((data || []) as VpnFileRow[]);
-        setError(null);
-      }
-      setLoading(false);
-    }
-
-    load();
-
-    const channel = supabase
-      .channel('vpn_files_public')
-      .on(
-        'postgres_changes',
+      setLoading(true);        'postgres_changes',
         { event: '*', schema: 'public', table: 'vpn_files' },
         (payload) => {
           setRows((prev) => {
