@@ -1,15 +1,33 @@
 import { useMemo, useState } from 'react';
 import { useSearchParams, Link } from 'react-router-dom';
-import { Trash2, ExternalLink, Upload, Loader2 } from 'lucide-react';
+import { Trash2, ExternalLink, Upload, Loader2, Clock, CheckCircle2, XCircle } from 'lucide-react';
 import { useVpnFiles } from '../hooks/useVpnFiles';
 import { supabase, STORAGE_BUCKET } from '../lib/supabase';
 import { apps } from '../constants';
-import { formatBytes } from '../lib/types';
+import { formatBytes, formatDateTime, getFileStatus, type FileStatus } from '../lib/types';
+
+const STATUS_LABEL: Record<FileStatus, { label: string; color: string; icon: React.ReactNode }> = {
+  active: {
+    label: 'Ativo',
+    color: 'text-emerald-400 bg-emerald-400/10 border-emerald-400/20',
+    icon: <CheckCircle2 className="w-3 h-3" />,
+  },
+  scheduled: {
+    label: 'Agendado',
+    color: 'text-cyan-400 bg-cyan-400/10 border-cyan-400/20',
+    icon: <Clock className="w-3 h-3" />,
+  },
+  expired: {
+    label: 'Expirado',
+    color: 'text-red-400 bg-red-400/10 border-red-400/20',
+    icon: <XCircle className="w-3 h-3" />,
+  },
+};
 
 export default function FilesList() {
   const [params, setParams] = useSearchParams();
   const filterApp = params.get('app') || 'all';
-  const { rows, loading } = useVpnFiles();
+  const { rows, loading } = useVpnFiles(true);
   const [deleting, setDeleting] = useState<string | null>(null);
 
   const filtered = useMemo(
@@ -34,15 +52,20 @@ export default function FilesList() {
     }
   };
 
+  const counts = useMemo(() => {
+    const active = rows.filter((r) => getFileStatus(r) === 'active').length;
+    const scheduled = rows.filter((r) => getFileStatus(r) === 'scheduled').length;
+    const expired = rows.filter((r) => getFileStatus(r) === 'expired').length;
+    return { active, scheduled, expired };
+  }, [rows]);
+
   return (
     <div className="p-6 md:p-10 max-w-6xl mx-auto">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
         <div>
-          <h1 className="text-xl md:text-2xl font-black tracking-tight uppercase">
-            Ficheiros
-          </h1>
+          <h1 className="text-xl md:text-2xl font-black tracking-tight uppercase">Ficheiros</h1>
           <p className="text-xs text-gray-500 mt-1">
-            Tudo o que está aqui é mostrado no site público em tempo real.
+            O site público mostra apenas os ficheiros <span className="text-emerald-400 font-bold">Ativos</span> no momento atual.
           </p>
         </div>
         <Link
@@ -52,6 +75,23 @@ export default function FilesList() {
           <Upload className="w-4 h-4" /> Novo Ficheiro
         </Link>
       </div>
+
+      {!loading && (
+        <div className="grid grid-cols-3 gap-3 mb-6">
+          <div className="bg-[#0d121b] border border-emerald-400/10 rounded-xl p-4 text-center">
+            <strong className="block text-xl font-bold text-emerald-400">{counts.active}</strong>
+            <small className="text-[9px] text-gray-500 tracking-widest uppercase">Ativos agora</small>
+          </div>
+          <div className="bg-[#0d121b] border border-cyan-400/10 rounded-xl p-4 text-center">
+            <strong className="block text-xl font-bold text-cyan-400">{counts.scheduled}</strong>
+            <small className="text-[9px] text-gray-500 tracking-widest uppercase">Agendados</small>
+          </div>
+          <div className="bg-[#0d121b] border border-red-400/10 rounded-xl p-4 text-center">
+            <strong className="block text-xl font-bold text-red-400">{counts.expired}</strong>
+            <small className="text-[9px] text-gray-500 tracking-widest uppercase">Expirados</small>
+          </div>
+        </div>
+      )}
 
       <div className="flex flex-wrap gap-2 mb-5">
         <FilterChip
@@ -94,22 +134,35 @@ export default function FilesList() {
         <div className="space-y-2">
           {filtered.map((r) => {
             const app = apps.find((a) => a.id === r.app_id);
+            const status = getFileStatus(r);
+            const statusInfo = STATUS_LABEL[status];
             return (
               <div
                 key={r.id}
-                className="bg-[#0d121b] border border-white/5 rounded-xl p-4 flex flex-col sm:flex-row sm:items-center gap-4"
+                className={`bg-[#0d121b] border rounded-xl p-4 flex flex-col sm:flex-row sm:items-center gap-4 transition-colors ${
+                  status === 'expired' ? 'border-white/5 opacity-60' : 'border-white/5'
+                }`}
               >
                 <div className="w-10 h-10 rounded-lg bg-white/5 flex items-center justify-center text-lg shrink-0">
                   {app?.icon ?? '📁'}
                 </div>
                 <div className="flex-1 min-w-0">
-                  <div className="font-bold text-sm truncate">{r.name}</div>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="font-bold text-sm truncate">{r.name}</span>
+                    <span className={`inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded border ${statusInfo.color}`}>
+                      {statusInfo.icon} {statusInfo.label}
+                    </span>
+                  </div>
                   <div className="text-[10px] text-gray-500 flex flex-wrap gap-x-3 gap-y-0.5 mt-1 uppercase tracking-widest font-bold">
                     <span>{app?.name || r.app_id}</span>
                     {r.region && <span>· {r.region}</span>}
                     <span>· {formatBytes(r.size_bytes)}</span>
                     <span>· {r.downloads} dls</span>
                     {r.pass && <span className="text-cyan-400">· protegido</span>}
+                  </div>
+                  <div className="text-[10px] text-gray-600 flex flex-wrap gap-x-3 mt-1 font-medium">
+                    <span>🕐 Início: {formatDateTime(r.valid_from)}</span>
+                    <span>⏳ Fim: {formatDateTime(r.valid_until)}</span>
                   </div>
                 </div>
                 <div className="flex items-center gap-2 shrink-0">
@@ -143,15 +196,7 @@ export default function FilesList() {
   );
 }
 
-function FilterChip({
-  label,
-  active,
-  onClick,
-}: {
-  label: string;
-  active: boolean;
-  onClick: () => void;
-}) {
+function FilterChip({ label, active, onClick }: { label: string; active: boolean; onClick: () => void }) {
   return (
     <button
       onClick={onClick}
