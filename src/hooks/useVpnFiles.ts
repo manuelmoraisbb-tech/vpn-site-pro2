@@ -11,30 +11,49 @@ export function useVpnFiles(adminMode = false) {
     let mounted = true;
 
     async function load() {
-      setLoading(true);        'postgres_changes',
-        { event: '*', schema: 'public', table: 'vpn_files' },
-        (payload) => {
-          setRows((prev) => {
-            if (payload.eventType === 'INSERT') {
-              const next = [...prev, payload.new as VpnFileRow];
-              return next.sort(
-                (a, b) =>
-                  a.display_order - b.display_order ||
-                  (a.created_at < b.created_at ? 1 : -1)
-              );
-            }
-            if (payload.eventType === 'UPDATE') {
-              return prev.map((r) =>
-                r.id === (payload.new as VpnFileRow).id
-                  ? (payload.new as VpnFileRow)
-                  : r
-              );
-            }
-            if (payload.eventType === 'DELETE') {
-              return prev.filter((r) => r.id !== (payload.old as VpnFileRow).id);
-            }
-            return prev;
-          });
+      setLoading(true);
+      const now = new Date().toISOString();
+
+      let query = supabase
+        .from('vpn_files')
+        .select('*')
+        .order('display_order', { ascending: true })
+        .order('created_at', { ascending: false });
+
+      if (!adminMode) {
+        query = query
+          .or(`valid_from.is.null,valid_from.lte.${now}`)
+          .or(`valid_until.is.null,valid_until.gte.${now}`);
+      }
+
+      const { data, error } = await query;
+
+      if (!mounted) return;
+      if (error) {
+        console.error('[v0] Failed to load vpn_files:', error.message);
+        setError(error.message);
+      } else {
+        setRows((data || []) as VpnFileRow[]);
+        setError(null);
+      }
+      setLoading(false);
+    }
+
+    load();
+
+    const channel = supabase
+      .channel(adminMode ? 'vpn_files_admin' : 'vpn_files_public')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'vpn_files' }, () => { load(); })
+      .subscribe();
+
+    return () => {
+      mounted = false;
+      supabase.removeChannel(channel);
+    };
+  }, [adminMode]);
+
+  return { rows, loading, error };
+  }          });
         }
       )
       .subscribe();
