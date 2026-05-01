@@ -4,14 +4,12 @@
  */
 
 import { useState, useEffect, useMemo } from 'react';
-import { Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import {
   Shield,
   Download,
   Key,
   Activity,
-  Lock,
   Loader2,
 } from 'lucide-react';
 import { apps } from './constants';
@@ -42,7 +40,6 @@ export default function App() {
   };
 
   const handleDownload = async (id: string) => {
-    // Fire-and-forget; counter is incremented atomically server-side via RPC
     supabase.rpc('increment_download', { file_id: id }).then(({ error }) => {
       if (error) console.error('[v0] increment_download error:', error.message);
     });
@@ -74,13 +71,6 @@ export default function App() {
                 VPN <span className="text-cyan-400">FREE</span>
               </span>
             </div>
-            <Link
-              to="/admin/login"
-              className="flex items-center gap-1.5 text-[10px] uppercase tracking-wider text-cyan-400 bg-cyan-400/10 px-3 py-1.5 rounded-full border border-cyan-400/20 font-semibold hover:bg-cyan-400 hover:text-black transition-colors"
-              aria-label="Acesso ao painel admin"
-            >
-              <Lock className="w-3 h-3" /> Admin
-            </Link>
           </div>
 
           <div className="mb-10">
@@ -309,4 +299,4 @@ export default function App() {
       </main>
     </div>
   );
-}
+    }
