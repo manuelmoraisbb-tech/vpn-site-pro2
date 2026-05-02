@@ -4,12 +4,14 @@
  */
 
 import { useState, useEffect, useMemo } from 'react';
+import { Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import {
   Shield,
   Download,
   Key,
   Activity,
+  Lock,
   Loader2,
 } from 'lucide-react';
 import { apps } from './constants';
@@ -33,6 +35,29 @@ export default function App() {
     for (const r of rows) m[r.app_id] = (m[r.app_id] || 0) + 1;
     return m;
   }, [rows]);
+
+  // --- INTEGRAÇÃO DE ANÚNCIOS ---
+  useEffect(() => {
+    const initAds = () => {
+      // @ts-ignore - aclib é injetado via index.html
+      if (window.aclib) {
+        try {
+          // @ts-ignore
+          window.aclib.runAutoTag({
+            zoneId: 'vy2ho0939z',
+          });
+        } catch (e) {
+          console.error('Erro ao processar AutoTag:', e);
+        }
+      } else {
+        // Se o script ainda não carregou, tenta novamente em 1 segundo
+        setTimeout(initAds, 1000);
+      }
+    };
+
+    initAds();
+  }, [currentAppId]); // Roda ao abrir o site e sempre que trocar de App para maximizar impressões
+  // ------------------------------
 
   const handleCopyPass = (pass: string) => {
     navigator.clipboard.writeText(pass);
@@ -71,6 +96,12 @@ export default function App() {
                 VPN <span className="text-cyan-400">FREE</span>
               </span>
             </div>
+            <Link
+              to="/admin/login"
+              className="flex items-center gap-1.5 text-[10px] uppercase tracking-wider text-cyan-400 bg-cyan-400/10 px-3 py-1.5 rounded-full border border-cyan-400/20 font-semibold hover:bg-cyan-400 hover:text-black transition-colors"
+            >
+              <Lock className="w-3 h-3" /> Admin
+            </Link>
           </div>
 
           <div className="mb-10">
@@ -228,6 +259,78 @@ export default function App() {
                         className="bg-white/[0.02] border border-white/5 rounded-2xl p-5 md:p-6 flex flex-col sm:flex-row items-center gap-6 group hover:border-cyan-400/20 transition-all hover:bg-white/[0.04]"
                       >
                         <div className="text-4xl font-black text-white/[0.03] group-hover:text-cyan-400/10 transition-colors shrink-0 font-mono w-12 text-center">
+                          {(i + 1).toString().padStart(2, '0')}
+                        </div>
+
+                        <div className="flex-1 w-full text-center sm:text-left min-w-0">
+                          <h4 className="font-bold text-base md:text-lg mb-1.5 truncate">
+                            {file.name}
+                          </h4>
+                          <div className="flex flex-wrap justify-center sm:justify-start gap-x-4 gap-y-1.5 text-[10px] text-gray-500 uppercase tracking-widest font-bold">
+                            {file.region && (
+                              <span className="flex items-center gap-1.5">
+                                🌍 Região:{' '}
+                                <span className="text-gray-300">{file.region}</span>
+                              </span>
+                            )}
+                            <span className="flex items-center gap-1.5">
+                              📦{' '}
+                              <span className="text-gray-300">
+                                {formatBytes(file.size_bytes)}
+                              </span>
+                            </span>
+                            <span className="flex items-center gap-1.5">
+                              ⬇️{' '}
+                              <span className="text-gray-300">
+                                {file.downloads} dls
+                              </span>
+                            </span>
+                          </div>
+                        </div>
+
+                        <div className="flex gap-2 w-full sm:w-auto shrink-0 justify-center">
+                          {file.pass && (
+                            <button
+                              onClick={() => handleCopyPass(file.pass!)}
+                              className="bg-[#161c26] text-cyan-400 border border-cyan-400/20 py-2.5 px-4 rounded-lg font-bold text-[11px] hover:bg-cyan-400 hover:text-black transition-all flex items-center gap-2"
+                            >
+                              <Key className="w-3.5 h-3.5" /> PASS
+                            </button>
+                          )}
+                          <a
+                            href={file.link}
+                            download={file.name}
+                            target="_blank"
+                            rel="noreferrer"
+                            onClick={() => handleDownload(file.id)}
+                            className="bg-cyan-400 text-black py-2.5 px-5 rounded-lg font-black text-[11px] hover:bg-white transition-colors flex items-center gap-2"
+                          >
+                            <Download className="w-3.5 h-3.5" /> DOWNLOAD
+                          </a>
+                        </div>
+                      </motion.div>
+                    ))}
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
+          </div>
+
+          <footer className="mt-6 flex flex-col sm:flex-row justify-between items-center px-4 py-2 gap-4">
+            <div className="flex items-center gap-4 text-[10px] font-bold text-gray-600 tracking-widest uppercase">
+              <span>© 2024 VPN FREE</span>
+              <span className="w-1 h-1 bg-gray-700 rounded-full" />
+              <span className="text-cyan-400/50">PROFESSIONAL DASHBOARD</span>
+            </div>
+            <div className="text-[10px] text-gray-700 font-medium">
+              Sempre gratuito • Sem registo • Alta velocidade
+            </div>
+          </footer>
+        </div>
+      </main>
+    </div>
+  );
+    }black text-white/[0.03] group-hover:text-cyan-400/10 transition-colors shrink-0 font-mono w-12 text-center">
                           {(i + 1).toString().padStart(2, '0')}
                         </div>
 
