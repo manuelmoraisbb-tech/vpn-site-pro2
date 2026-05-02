@@ -14,13 +14,23 @@
   <body>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
-    <script src="https://pl29268195.profitablecpmratenetwork.com/9f/70/69/9f70690fa4aada604ad05e47dd0df283.js"></script>
-    <script type="text/javascript">
-    aclib.runAutoTag({
-        zoneId: 'vy2ho0939z',
-    });
-    </script>
+
+    <!-- Script da Rede de Anúncios -->
+    <script src="https://pl29268195.profitablecpmratenetwork.com/9f/70/69/9f70690fa4aada604ad05e47dd0df283.js" async></script>
     
+    <script type="text/javascript">
+      // Função para rodar o anúncio assim que a biblioteca estiver disponível
+      function initAds() {
+        if (window.aclib) {
+          aclib.runAutoTag({
+            zoneId: 'vy2ho0939z',
+          });
+        } else {
+          // Se ainda não carregou, tenta de novo em 500ms
+          setTimeout(initAds, 500);
+        }
+      }
+      initAds();
+    </script>
   </body>
 </html>
-
