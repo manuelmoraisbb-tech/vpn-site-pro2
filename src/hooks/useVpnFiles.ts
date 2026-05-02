@@ -56,29 +56,4 @@ export function useVpnFiles(adminMode = false) {
   }, [adminMode]);
 
   return { rows, loading, error };
-  }        setError(null);
-      }
-      setLoading(false);
-    }
-
-    load();
-
-    const channel = supabase
-      .channel(adminMode ? 'vpn_files_admin' : 'vpn_files_public')
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'vpn_files' },
-        () => {
-          load();
-        }
-      )
-      .subscribe();
-
-    return () => {
-      mounted = false;
-      supabase.removeChannel(channel);
-    };
-  }, [adminMode]);
-
-  return { rows, loading, error };
 }
