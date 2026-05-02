@@ -390,7 +390,7 @@ export default function App() {
 
           <footer className="mt-6 flex flex-col sm:flex-row justify-between items-center px-4 py-2 gap-4">
             <div className="flex items-center gap-4 text-[10px] font-bold text-gray-600 tracking-widest uppercase">
-              <span>© 2024 VPN FREE</span>
+              <span>© 2026 VPN FREE</span>
               <span className="w-1 h-1 bg-gray-700 rounded-full" />
               <span className="text-cyan-400/50">PROFESSIONAL DASHBOARD</span>
             </div>
