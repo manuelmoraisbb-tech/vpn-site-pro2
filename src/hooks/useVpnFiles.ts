@@ -7,10 +7,8 @@ export function useVpnFiles(adminMode = false) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    let mounted = true;
-
-    async function load() {
+  const loadData = async () => {
+    try {
       setLoading(true);
       const now = new Date().toISOString();
 
@@ -26,15 +24,39 @@ export function useVpnFiles(adminMode = false) {
           .or(`valid_until.is.null,valid_until.gte.${now}`);
       }
 
-      const { data, error } = await query;
+      const { data, error: err } = await query;
 
-      if (!mounted) return;
-      if (error) {
-        console.error('[v0] Failed to load vpn_files:', error.message);
-        setError(error.message);
-      } else {
-        setRows((data || []) as VpnFileRow[]);
-        setError(null);
+      if (err) throw err;
+      setRows((data || []) as VpnFileRow[]);
+    } catch (err: any) {
+      console.error('Erro ao carregar dados:', err.message);
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadData();
+
+    const channel = supabase
+      .channel(adminMode ? 'admin_changes' : 'public_changes')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'vpn_files' },
+        () => {
+          loadData();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [adminMode]);
+
+  return { rows, loading, error };
+  }        setError(null);
       }
       setLoading(false);
     }
