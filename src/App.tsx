@@ -50,12 +50,13 @@ export default function App() {
           console.error('Erro ao processar AutoTag:', e);
         }
       } else {
+        // Se o script ainda não carregou, tenta novamente em 1 segundo
         setTimeout(initAds, 1000);
       }
     };
 
     initAds();
-  }, [currentAppId]);
+  }, [currentAppId]); // Roda ao abrir o site e sempre que trocar de App para maximizar impressões
   // ------------------------------
 
   const handleCopyPass = (pass: string) => {
