@@ -18,6 +18,7 @@ import { apps } from './constants';
 import { useVpnFiles } from './hooks/useVpnFiles';
 import { supabase } from './lib/supabase';
 import { formatBytes } from './lib/types';
+import AdWarningModal from './AdWarningModal';
 
 export default function App() {
   const [currentAppId, setCurrentAppId] = useState<string>(apps[0].id);
@@ -76,6 +77,7 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-[#030509] text-white font-sans selection:bg-cyan-500/30 flex flex-col md:flex-row overflow-x-hidden">
+      <AdWarningModal />
       <div
         className="fixed inset-0 pointer-events-none opacity-[0.03]"
         style={{
