@@ -4,21 +4,11 @@ import path from 'path';
 import {defineConfig, loadEnv} from 'vite';
 
 export default defineConfig(({mode}) => {
-  // Load env from multiple possible locations
-  const localEnv = loadEnv(mode, '.', '');
-  const vercelEnv = loadEnv(mode, '/vercel/share', '');
-  const env = {...localEnv, ...vercelEnv, ...process.env};
+  // Load environment variables
+  const env = loadEnv(mode, '.', '');
   
-  const supabaseUrl =
-    env.VITE_SUPABASE_URL ||
-    env.NEXT_PUBLIC_SUPABASE_URL ||
-    env.SUPABASE_URL ||
-    '';
-  const supabaseAnonKey =
-    env.VITE_SUPABASE_ANON_KEY ||
-    env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
-    env.SUPABASE_ANON_KEY ||
-    '';
+  const supabaseUrl = env.VITE_SUPABASE_URL || '';
+  const supabaseAnonKey = env.VITE_SUPABASE_ANON_KEY || '';
 
   return {
     plugins: [react(), tailwindcss()],
