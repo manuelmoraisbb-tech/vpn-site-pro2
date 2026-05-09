@@ -9,6 +9,8 @@ import AdminLogin from './admin/Login';
 import AdminDashboard from './admin/Dashboard';
 import AdminUpload from './admin/UploadFile';
 import AdminFiles from './admin/FilesList';
+import AdminSettings from './admin/Settings';
+import AdminComments from './admin/Comments';
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
@@ -21,6 +23,8 @@ createRoot(document.getElementById('root')!).render(
             <Route index element={<AdminDashboard />} />
             <Route path="upload" element={<AdminUpload />} />
             <Route path="files" element={<AdminFiles />} />
+            <Route path="comments" element={<AdminComments />} />
+            <Route path="settings" element={<AdminSettings />} />
           </Route>
         </Routes>
       </AuthProvider>

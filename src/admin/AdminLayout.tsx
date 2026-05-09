@@ -7,6 +7,8 @@ import {
   LogOut,
   Shield,
   Loader2,
+  Settings,
+  MessageSquare,
 } from 'lucide-react';
 import { useAuth } from './AuthContext';
 
@@ -14,6 +16,8 @@ const navItems = [
   { to: '/admin', label: 'Dashboard', icon: LayoutGrid, end: true },
   { to: '/admin/upload', label: 'Enviar Ficheiro', icon: Upload },
   { to: '/admin/files', label: 'Ficheiros', icon: FolderOpen },
+  { to: '/admin/comments', label: 'Comentarios', icon: MessageSquare },
+  { to: '/admin/settings', label: 'Configuracoes', icon: Settings },
 ];
 
 export default function AdminLayout() {
