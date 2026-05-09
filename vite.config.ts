@@ -4,7 +4,11 @@ import path from 'path';
 import {defineConfig, loadEnv} from 'vite';
 
 export default defineConfig(({mode}) => {
-  const env = loadEnv(mode, '.', '');
+  // Load environment variables from multiple locations
+  const localEnv = loadEnv(mode, '.', '');
+  const vercelEnv = loadEnv(mode, '/vercel/share', '');
+  const env = { ...localEnv, ...vercelEnv, ...process.env };
+  
   const supabaseUrl =
     env.VITE_SUPABASE_URL ||
     env.NEXT_PUBLIC_SUPABASE_URL ||
