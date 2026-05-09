@@ -4,31 +4,82 @@
  */
 
 import { useState, useEffect, useMemo } from 'react';
-import { Link } from 'react-router-dom';
-import { motion, AnimatePresence } from 'motion/react';
+import { Link, useNavigate } from 'react-router-dom';
+import { motion } from 'motion/react';
 import {
   Shield,
-  Download,
-  Key,
-  Activity,
-  Lock,
+  Wrench,
+  Globe,
+  Zap,
+  Target,
+  Sparkles,
+  ChevronRight,
+  MessageSquare,
+  Send,
   Loader2,
 } from 'lucide-react';
 import { apps } from './constants';
 import { useVpnFiles } from './hooks/useVpnFiles';
 import { supabase } from './lib/supabase';
-import { formatBytes } from './lib/types';
-import AdWarningModal from './AdWarningModal';
+
+const iconMap: Record<string, React.ReactNode> = {
+  http_injector: <Wrench className="w-5 h-5" />,
+  bd_net: <Globe className="w-5 h-5" />,
+  apna_tunnel: <Zap className="w-5 h-5" />,
+  maya_tun: <Target className="w-5 h-5" />,
+};
+
+const colorMap: Record<string, string> = {
+  http_injector: 'bg-purple-500/20 text-purple-400 border-purple-500/30',
+  bd_net: 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30',
+  apna_tunnel: 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30',
+  maya_tun: 'bg-cyan-500/20 text-cyan-400 border-cyan-500/30',
+};
+
+const badgeColorMap: Record<string, string> = {
+  http_injector: 'bg-purple-500/20 text-purple-400',
+  bd_net: 'bg-emerald-500/20 text-emerald-400',
+  apna_tunnel: 'bg-yellow-500/20 text-yellow-400',
+  maya_tun: 'bg-cyan-500/20 text-cyan-400',
+};
+
+type Comment = {
+  id: string;
+  author_name: string;
+  content: string;
+  created_at: string;
+};
 
 export default function App() {
-  const [currentAppId, setCurrentAppId] = useState<string>(apps[0].id);
-  const { rows, loading } = useVpnFiles();
+  const { rows } = useVpnFiles();
+  const navigate = useNavigate();
+  const [adflyUrl, setAdflyUrl] = useState<string>('');
+  const [comments, setComments] = useState<Comment[]>([]);
+  const [commentName, setCommentName] = useState('');
+  const [commentContent, setCommentContent] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [submitted, setSubmitted] = useState(false);
 
-  const selectedApp = apps.find((a) => a.id === currentAppId) || apps[0];
-  const files = useMemo(
-    () => rows.filter((r) => r.app_id === currentAppId),
-    [rows, currentAppId]
-  );
+  // Fetch adfly URL and approved comments
+  useEffect(() => {
+    supabase
+      .from('site_settings')
+      .select('value')
+      .eq('key', 'adfly_url')
+      .single()
+      .then(({ data }) => {
+        if (data?.value) setAdflyUrl(data.value);
+      });
+
+    supabase
+      .from('comments')
+      .select('*')
+      .eq('is_approved', true)
+      .order('created_at', { ascending: false })
+      .then(({ data }) => {
+        if (data) setComments(data);
+      });
+  }, []);
 
   const counts = useMemo(() => {
     const m: Record<string, number> = {};
@@ -37,276 +88,268 @@ export default function App() {
     return m;
   }, [rows]);
 
-  const handleCopyPass = (pass: string) => {
-    navigator.clipboard.writeText(pass);
-    alert('Password copiada: ' + pass);
+  const handleViewFiles = (appId: string) => {
+    if (adflyUrl) {
+      // Redirect via Adfly with target URL as the files page
+      const targetUrl = `${window.location.origin}/files/${appId}`;
+      const adflyRedirect = adflyUrl.includes('?')
+        ? `${adflyUrl}&url=${encodeURIComponent(targetUrl)}`
+        : `${adflyUrl}?url=${encodeURIComponent(targetUrl)}`;
+      window.location.href = adflyRedirect;
+    } else {
+      navigate(`/files/${appId}`);
+    }
   };
 
-  const handleDownload = async (id: string) => {
-    supabase.rpc('increment_download', { file_id: id }).then(({ error }) => {
-      if (error) console.error('[v0] increment_download error:', error.message);
+  const handleSubmitComment = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!commentName.trim() || !commentContent.trim()) return;
+
+    setSubmitting(true);
+    const { error } = await supabase.from('comments').insert({
+      author_name: commentName.trim(),
+      content: commentContent.trim(),
     });
+
+    setSubmitting(false);
+    if (!error) {
+      setCommentName('');
+      setCommentContent('');
+      setSubmitted(true);
+      setTimeout(() => setSubmitted(false), 5000);
+    }
   };
 
-  useEffect(() => {
-    window.scrollTo(0, 0);
-  }, [currentAppId]);
+  const howToSteps = [
+    {
+      num: '01',
+      title: 'Escolhe a app',
+      desc: 'Seleciona a aplicacao VPN que tens instalada no teu telemovel.',
+    },
+    {
+      num: '02',
+      title: 'Escolhe o ficheiro',
+      desc: 'Ves ate 5 ficheiros. Escolhe e carrega em Download.',
+    },
+    {
+      num: '03',
+      title: 'Importa na app',
+      desc: 'Abre a tua app VPN, vai a Importar e seleciona o ficheiro.',
+    },
+    {
+      num: '04',
+      title: 'Usa a password',
+      desc: 'Se tiver password, carrega no botao PASS para ver e copiar.',
+    },
+  ];
 
   return (
-    <div className="min-h-screen bg-[#030509] text-white font-sans selection:bg-cyan-500/30 flex flex-col md:flex-row overflow-x-hidden">
-      <AdWarningModal />
-      <div
-        className="fixed inset-0 pointer-events-none opacity-[0.03]"
-        style={{
-          backgroundImage: `
-            linear-gradient(rgba(255, 255, 255, 1) 1px, transparent 1px),
-            linear-gradient(90deg, rgba(255, 255, 255, 1) 1px, transparent 1px)
-          `,
-          backgroundSize: '40px 40px',
-        }}
-      />
-
-      <aside className="relative z-20 w-full md:w-[320px] bg-[#030509] border-r border-white/5 flex flex-col shrink-0">
-        <div className="p-8 pb-6">
-          <div className="flex items-center justify-between mb-8">
-            <div className="flex items-center gap-2 font-black text-xl tracking-wider">
-              <Shield className="w-6 h-6 text-cyan-400" />
-              <span>
-                VPN <span className="text-cyan-400">FREE</span>
-              </span>
-            </div>
-            <Link
-              to="/admin/login"
-              className="flex items-center gap-1.5 text-[10px] uppercase tracking-wider text-cyan-400 bg-cyan-400/10 px-3 py-1.5 rounded-full border border-cyan-400/20 font-semibold hover:bg-cyan-400 hover:text-black transition-colors"
-            >
-              <Lock className="w-3 h-3" /> Admin
-            </Link>
+    <div className="min-h-screen bg-[#0a0e14] text-white font-sans">
+      {/* Header */}
+      <header className="border-b border-white/5 bg-[#0a0e14]/80 backdrop-blur-sm sticky top-0 z-50">
+        <div className="max-w-6xl mx-auto px-4 py-4 flex items-center justify-between">
+          <Link to="/" className="flex items-center gap-2 font-black text-lg tracking-wider">
+            <Shield className="w-5 h-5 text-emerald-400" />
+            <span>
+              VPN <span className="text-emerald-400">FREE</span>
+            </span>
+          </Link>
+          <div className="flex items-center gap-2 text-[10px] uppercase tracking-wider text-emerald-400 bg-emerald-400/10 px-3 py-1.5 rounded-full border border-emerald-400/20 font-semibold">
+            <Sparkles className="w-3 h-3" /> 100% Gratuito
           </div>
+        </div>
+      </header>
 
-          <div className="mb-10">
-            <h1 className="text-4xl font-extrabold leading-[0.9] tracking-tighter uppercase mb-3">
-              ARQUIVOS <br />
-              <span className="text-cyan-400">VPN GRÁTIS</span>
-            </h1>
-            <p className="text-xs text-gray-500 leading-relaxed max-w-[240px]">
-              Selecione uma aplicação para listar os ficheiros de configuração
-              disponíveis.
-            </p>
+      {/* Hero Section */}
+      <section className="relative overflow-hidden">
+        <div className="absolute inset-0 bg-gradient-to-b from-emerald-500/5 to-transparent" />
+        <div className="max-w-6xl mx-auto px-4 py-12 text-center relative">
+          <div className="inline-flex items-center gap-2 text-[11px] uppercase tracking-widest text-amber-400 bg-amber-400/10 px-4 py-2 rounded-full border border-amber-400/20 font-bold mb-6">
+            <span>🇦🇴</span> ANGOLA - SEMPRE ACTUALIZADO
           </div>
+          <h1 className="text-4xl md:text-5xl font-black tracking-tight mb-4">
+            CONFIGURACOES
+            <br />
+            <span className="text-emerald-400">VPN GRATIS</span>
+          </h1>
+          <p className="text-gray-400 text-sm max-w-md mx-auto mb-8">
+            Ficheiros prontos para importar nas tuas apps VPN favoritas.
+            <br />
+            Sem registo, sem pagamento, sempre gratuito.
+          </p>
 
-          <div className="grid grid-cols-2 gap-3 mb-8">
-            <div className="bg-[#0d121b] p-4 rounded-xl border border-white/5 text-center">
-              <strong className="block text-xl font-bold text-cyan-400">
-                {apps.length}
-              </strong>
-              <small className="text-[9px] text-gray-500 tracking-widest block uppercase">
-                Apps
-              </small>
+          {/* Stats */}
+          <div className="inline-flex items-center gap-6 bg-[#111820] rounded-2xl border border-white/5 px-8 py-4">
+            <div className="text-center">
+              <div className="text-2xl font-black text-cyan-400">{apps.length}</div>
+              <div className="text-[9px] text-gray-500 uppercase tracking-widest font-bold">
+                Apps VPN
+              </div>
             </div>
-            <div className="bg-[#0d121b] p-4 rounded-xl border border-white/5 text-center">
-              <strong className="block text-xl font-bold text-cyan-400">
-                {rows.length}
-              </strong>
-              <small className="text-[9px] text-gray-500 tracking-widest block uppercase">
+            <div className="w-px h-8 bg-white/10" />
+            <div className="text-center">
+              <div className="text-2xl font-black text-cyan-400">{rows.length}</div>
+              <div className="text-[9px] text-gray-500 uppercase tracking-widest font-bold">
                 Ficheiros
-              </small>
+              </div>
+            </div>
+            <div className="w-px h-8 bg-white/10" />
+            <div className="text-center">
+              <div className="text-2xl font-black text-cyan-400">0 KZ</div>
+              <div className="text-[9px] text-gray-500 uppercase tracking-widest font-bold">
+                Custo
+              </div>
             </div>
           </div>
+        </div>
+      </section>
 
-          <nav className="space-y-2">
-            <p className="text-[10px] font-bold text-gray-600 tracking-[0.2em] uppercase mb-4 ml-1">
-              Navegação
-            </p>
-            {apps.map((app) => (
-              <button
-                key={app.id}
-                onClick={() => setCurrentAppId(app.id)}
-                className={`w-full flex items-center gap-4 p-4 rounded-xl border transition-all text-left relative group ${
-                  currentAppId === app.id
-                    ? 'bg-[#111721] border-cyan-400/30 text-white'
-                    : 'bg-[#0d121b] border-white/5 text-gray-400 hover:border-white/10 hover:bg-[#0e141d]'
-                }`}
+      {/* Apps Grid Section */}
+      <section className="max-w-6xl mx-auto px-4 py-12">
+        <h2 className="text-[10px] font-bold text-gray-500 tracking-[0.2em] uppercase mb-6">
+          ESCOLHE A TUA APLICACAO
+        </h2>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          {apps.map((app, i) => (
+            <motion.div
+              key={app.id}
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: i * 0.1 }}
+              className="bg-[#111820] border border-white/5 rounded-2xl p-6 hover:border-white/10 transition-all group"
+            >
+              <div
+                className={`w-10 h-10 rounded-xl flex items-center justify-center mb-4 border ${colorMap[app.id]}`}
               >
-                <div
-                  className={`w-8 h-8 rounded-lg flex items-center justify-center text-base transition-colors ${
-                    currentAppId === app.id
-                      ? 'bg-cyan-400/10 text-cyan-400'
-                      : 'bg-white/5 text-gray-500 group-hover:bg-white/10'
-                  }`}
-                >
-                  {app.icon}
-                </div>
-                <h3 className="text-sm font-bold flex-1">{app.name}</h3>
-                <div
-                  className={`text-[10px] px-2 py-1 rounded font-bold ${
-                    currentAppId === app.id
-                      ? 'bg-cyan-400/10 text-cyan-400'
-                      : 'bg-white/5 text-gray-600'
-                  }`}
-                >
-                  {counts[app.id] ?? 0}
-                </div>
-              </button>
-            ))}
-          </nav>
-        </div>
-
-        <div className="mt-auto p-8 border-t border-white/5 hidden md:block space-y-3">
-          <div className="bg-[#0d121b] p-4 rounded-2xl border border-white/5 flex items-center gap-3">
-            <div className="w-10 h-10 bg-[#00ff88]/5 rounded-full flex items-center justify-center text-[#00ff88]">
-              <Activity className="w-5 h-5" />
-            </div>
-            <div>
-              <p className="text-[10px] font-bold uppercase text-gray-500">
-                Status do Servidor
-              </p>
-              <p className="text-[11px] font-bold text-[#00ff88]">
-                Serviço Operacional
-              </p>
-            </div>
-          </div>
-        </div>
-      </aside>
-
-      <main className="relative z-10 flex-1 flex flex-col min-w-0 bg-[#030509]">
-        <div className="flex-1 p-4 sm:p-8 flex flex-col">
-          <div className="bg-[#0d121b] border border-white/5 rounded-[24px] flex-1 flex flex-col min-h-0 overflow-hidden shadow-2xl">
-            <header className="p-6 md:p-8 border-b border-white/5 flex flex-col sm:flex-row items-center gap-6 bg-gradient-to-br from-white/[0.02] to-transparent">
-              <div className="w-16 h-16 md:w-20 md:h-20 bg-cyan-400/5 rounded-2xl border border-cyan-400/10 flex items-center justify-center text-3xl md:text-4xl shadow-lg shadow-cyan-400/5 shrink-0">
-                {selectedApp.icon}
+                {iconMap[app.id]}
               </div>
-              <div className="text-center sm:text-left flex-1 min-w-0">
-                <div className="flex flex-col sm:flex-row sm:items-center gap-3 mb-2">
-                  <h2 className="text-2xl md:text-3xl font-black tracking-tight">
-                    {selectedApp.name}
-                  </h2>
-                  <div className="flex gap-2 justify-center sm:justify-start">
-                    <span className="text-[9px] font-black uppercase tracking-widest bg-cyan-400/10 text-cyan-400 px-2 py-1 rounded border border-cyan-400/10">
-                      {counts[selectedApp.id] ?? 0} ficheiros
-                    </span>
-                  </div>
-                </div>
-                <p className="text-xs md:text-sm text-gray-500 leading-relaxed max-w-xl truncate sm:whitespace-normal">
-                  {selectedApp.desc}
-                </p>
+              <h3 className="font-bold text-lg mb-2">{app.name}</h3>
+              <p className="text-gray-500 text-xs leading-relaxed mb-4">{app.desc}</p>
+              <div className="flex items-center justify-between">
+                <span
+                  className={`text-[10px] font-bold px-2.5 py-1 rounded-full ${badgeColorMap[app.id]}`}
+                >
+                  {counts[app.id]} ficheiros disponiveis
+                </span>
+                <button
+                  onClick={() => handleViewFiles(app.id)}
+                  className="flex items-center gap-1 text-[11px] font-bold text-cyan-400 bg-cyan-400/10 px-4 py-2 rounded-lg border border-cyan-400/20 hover:bg-cyan-400 hover:text-black transition-all"
+                >
+                  Ver ficheiros <ChevronRight className="w-3.5 h-3.5" />
+                </button>
               </div>
-            </header>
+            </motion.div>
+          ))}
+        </div>
+      </section>
 
-            <div className="flex-1 overflow-y-auto p-6 md:p-8 custom-scrollbar">
-              <AnimatePresence mode="wait">
-                {loading ? (
-                  <motion.div
-                    key="loading"
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    exit={{ opacity: 0 }}
-                    className="h-full flex flex-col items-center justify-center text-gray-500 py-20"
-                  >
-                    <Loader2 className="w-6 h-6 animate-spin text-cyan-400 mb-3" />
-                    <p className="text-xs">A carregar configurações...</p>
-                  </motion.div>
-                ) : files.length === 0 ? (
-                  <motion.div
-                    key="empty"
-                    initial={{ opacity: 0, scale: 0.95 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    exit={{ opacity: 0, scale: 0.95 }}
-                    className="h-full flex flex-col items-center justify-center text-center text-gray-500 py-12"
-                  >
-                    <div className="text-[80px] mb-6 opacity-10">📬</div>
-                    <h3 className="text-xl font-bold text-white mb-2">
-                      Sem ficheiros de momento
-                    </h3>
-                    <p className="text-xs max-w-xs mx-auto leading-relaxed">
-                      O administrador ainda não carregou ficheiros para esta
-                      aplicação. Por favor, aguarde a próxima actualização.
-                    </p>
-                  </motion.div>
+      {/* How To Use Section */}
+      <section className="max-w-6xl mx-auto px-4 py-12">
+        <h2 className="text-[10px] font-bold text-gray-500 tracking-[0.2em] uppercase mb-6">
+          COMO USAR
+        </h2>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          {howToSteps.map((step, i) => (
+            <motion.div
+              key={step.num}
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: i * 0.1 }}
+              className="bg-[#111820] border border-white/5 rounded-2xl p-5"
+            >
+              <div className="text-3xl font-black text-cyan-400 mb-3">{step.num}</div>
+              <h3 className="font-bold text-sm mb-2">{step.title}</h3>
+              <p className="text-gray-500 text-[11px] leading-relaxed">{step.desc}</p>
+            </motion.div>
+          ))}
+        </div>
+      </section>
+
+      {/* Comments Section */}
+      <section className="max-w-6xl mx-auto px-4 py-12">
+        <h2 className="text-[10px] font-bold text-gray-500 tracking-[0.2em] uppercase mb-6 flex items-center gap-2">
+          <MessageSquare className="w-4 h-4" /> COMENTARIOS
+        </h2>
+
+        {/* Comment Form */}
+        <div className="bg-[#111820] border border-white/5 rounded-2xl p-6 mb-6">
+          <h3 className="font-bold text-sm mb-4">Deixa o teu comentario</h3>
+          {submitted ? (
+            <div className="text-emerald-400 text-sm py-4 text-center">
+              Obrigado! O teu comentario foi enviado e aguarda aprovacao.
+            </div>
+          ) : (
+            <form onSubmit={handleSubmitComment} className="space-y-4">
+              <input
+                type="text"
+                placeholder="O teu nome"
+                value={commentName}
+                onChange={(e) => setCommentName(e.target.value)}
+                className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm placeholder:text-gray-600 focus:outline-none focus:border-cyan-400/50"
+                required
+              />
+              <textarea
+                placeholder="Escreve o teu comentario..."
+                value={commentContent}
+                onChange={(e) => setCommentContent(e.target.value)}
+                rows={3}
+                className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm placeholder:text-gray-600 focus:outline-none focus:border-cyan-400/50 resize-none"
+                required
+              />
+              <button
+                type="submit"
+                disabled={submitting}
+                className="flex items-center gap-2 text-[11px] font-bold text-black bg-cyan-400 px-5 py-2.5 rounded-lg hover:bg-cyan-300 transition-colors disabled:opacity-50"
+              >
+                {submitting ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
                 ) : (
-                  <motion.div
-                    key={currentAppId}
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    className="space-y-3"
-                  >
-                    {files.map((file, i) => (
-                      <motion.div
-                        key={file.id}
-                        initial={{ opacity: 0, x: -10 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        transition={{ delay: i * 0.05 }}
-                        className="bg-white/[0.02] border border-white/5 rounded-2xl p-5 md:p-6 flex flex-col sm:flex-row items-center gap-6 group hover:border-cyan-400/20 transition-all hover:bg-white/[0.04]"
-                      >
-                        <div className="text-4xl font-black text-white/[0.03] group-hover:text-cyan-400/10 transition-colors shrink-0 font-mono w-12 text-center">
-                          {(i + 1).toString().padStart(2, '0')}
-                        </div>
-
-                        <div className="flex-1 w-full text-center sm:text-left min-w-0">
-                          <h4 className="font-bold text-base md:text-lg mb-1.5 truncate">
-                            {file.name}
-                          </h4>
-                          <div className="flex flex-wrap justify-center sm:justify-start gap-x-4 gap-y-1.5 text-[10px] text-gray-500 uppercase tracking-widest font-bold">
-                            {file.region && (
-                              <span className="flex items-center gap-1.5">
-                                🌍 Região:{' '}
-                                <span className="text-gray-300">{file.region}</span>
-                              </span>
-                            )}
-                            <span className="flex items-center gap-1.5">
-                              📦{' '}
-                              <span className="text-gray-300">
-                                {formatBytes(file.size_bytes)}
-                              </span>
-                            </span>
-                            <span className="flex items-center gap-1.5">
-                              ⬇️{' '}
-                              <span className="text-gray-300">
-                                {file.downloads} dls
-                              </span>
-                            </span>
-                          </div>
-                        </div>
-
-                        <div className="flex gap-2 w-full sm:w-auto shrink-0 justify-center">
-                          {file.pass && (
-                            <button
-                              onClick={() => handleCopyPass(file.pass!)}
-                              className="bg-[#161c26] text-cyan-400 border border-cyan-400/20 py-2.5 px-4 rounded-lg font-bold text-[11px] hover:bg-cyan-400 hover:text-black transition-all flex items-center gap-2"
-                            >
-                              <Key className="w-3.5 h-3.5" /> PASS
-                            </button>
-                          )}
-                          <a
-                            href={file.link}
-                            download={file.name}
-                            target="_blank"
-                            rel="noreferrer"
-                            onClick={() => handleDownload(file.id)}
-                            className="bg-cyan-400 text-black py-2.5 px-5 rounded-lg font-black text-[11px] hover:bg-white transition-colors flex items-center gap-2"
-                          >
-                            <Download className="w-3.5 h-3.5" /> DOWNLOAD
-                          </a>
-                        </div>
-                      </motion.div>
-                    ))}
-                  </motion.div>
+                  <Send className="w-4 h-4" />
                 )}
-              </AnimatePresence>
-            </div>
-          </div>
-
-          <footer className="mt-6 flex flex-col sm:flex-row justify-between items-center px-4 py-2 gap-4">
-            <div className="flex items-center gap-4 text-[10px] font-bold text-gray-600 tracking-widest uppercase">
-              <span>© 2026 VPN FREE</span>
-              <span className="w-1 h-1 bg-gray-700 rounded-full" />
-              <span className="text-cyan-400/50">PROFESSIONAL DASHBOARD</span>
-            </div>
-            <div className="text-[10px] text-gray-700 font-medium">
-              Sempre gratuito • Sem registo • Alta velocidade
-            </div>
-          </footer>
+                Enviar Comentario
+              </button>
+            </form>
+          )}
         </div>
-      </main>
+
+        {/* Comments List */}
+        <div className="space-y-4">
+          {comments.length === 0 ? (
+            <div className="text-center text-gray-500 text-sm py-8">
+              Ainda nao ha comentarios aprovados. Se o primeiro!
+            </div>
+          ) : (
+            comments.map((comment) => (
+              <div
+                key={comment.id}
+                className="bg-[#111820] border border-white/5 rounded-2xl p-5"
+              >
+                <div className="flex items-center justify-between mb-3">
+                  <span className="font-bold text-sm">{comment.author_name}</span>
+                  <span className="text-[10px] text-gray-500">
+                    {new Date(comment.created_at).toLocaleDateString('pt-PT')}
+                  </span>
+                </div>
+                <p className="text-gray-400 text-sm leading-relaxed">{comment.content}</p>
+              </div>
+            ))
+          )}
+        </div>
+      </section>
+
+      {/* Footer */}
+      <footer className="border-t border-white/5 py-6 mt-12">
+        <div className="max-w-6xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-4">
+          <Link to="/" className="flex items-center gap-2 font-black text-sm tracking-wider">
+            <span>
+              VPN<span className="text-emerald-400">FREE</span>
+            </span>
+          </Link>
+          <div className="text-[10px] text-gray-500">
+            © 2026 VPN Free AO - Sempre gratuito
+          </div>
+        </div>
+      </footer>
     </div>
   );
 }
