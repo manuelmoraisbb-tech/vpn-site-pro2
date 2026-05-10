@@ -19,12 +19,14 @@ import {
 } from 'lucide-react';
 import { apps } from './constants';
 import { useVpnFiles } from './hooks/useVpnFiles';
+import { useShortener } from './hooks/useShortener';
 import { supabase } from './lib/supabase';
 import { formatBytes, formatDateTime, getFileStatus } from './lib/types';
 
 export default function FilesPage() {
   const { appId } = useParams<{ appId: string }>();
   const { rows, loading } = useVpnFiles();
+  const { wrap: wrapWithShortener } = useShortener();
 
   const selectedApp = apps.find((a) => a.id === appId) || apps[0];
   const files = useMemo(
@@ -210,8 +212,7 @@ export default function FilesPage() {
                         </button>
                       )}
                       <a
-                        href={isExpired ? undefined : file.link}
-                        download={file.name}
+                        href={isExpired ? undefined : wrapWithShortener(file.link)}
                         target="_blank"
                         rel="noreferrer"
                         onClick={() => !isExpired && handleDownload(file.id)}

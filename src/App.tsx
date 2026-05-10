@@ -20,6 +20,7 @@ import {
 } from 'lucide-react';
 import { apps } from './constants';
 import { useVpnFiles } from './hooks/useVpnFiles';
+import { useShortener } from './hooks/useShortener';
 import { supabase } from './lib/supabase';
 
 const iconMap: Record<string, React.ReactNode> = {
@@ -53,24 +54,15 @@ type Comment = {
 export default function App() {
   const { rows } = useVpnFiles();
   const navigate = useNavigate();
-  const [adflyUrl, setAdflyUrl] = useState<string>('');
+  const { wrap: wrapWithShortener } = useShortener();
   const [comments, setComments] = useState<Comment[]>([]);
   const [commentName, setCommentName] = useState('');
   const [commentContent, setCommentContent] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
 
-  // Fetch adfly URL and approved comments
+  // Fetch approved comments
   useEffect(() => {
-    supabase
-      .from('site_settings')
-      .select('value')
-      .eq('key', 'adfly_url')
-      .single()
-      .then(({ data }) => {
-        if (data?.value) setAdflyUrl(data.value);
-      });
-
     supabase
       .from('comments')
       .select('*')
@@ -89,13 +81,11 @@ export default function App() {
   }, [rows]);
 
   const handleViewFiles = (appId: string) => {
-    if (adflyUrl) {
-      // Redirect via Adfly with target URL as the files page
-      const targetUrl = `${window.location.origin}/files/${appId}`;
-      const adflyRedirect = adflyUrl.includes('?')
-        ? `${adflyUrl}&url=${encodeURIComponent(targetUrl)}`
-        : `${adflyUrl}?url=${encodeURIComponent(targetUrl)}`;
-      window.location.href = adflyRedirect;
+    const targetUrl = `${window.location.origin}/files/${appId}`;
+    const shortened = wrapWithShortener(targetUrl);
+    if (shortened !== targetUrl) {
+      // Shortener configured - go through it
+      window.location.href = shortened;
     } else {
       navigate(`/files/${appId}`);
     }
