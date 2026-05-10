@@ -67,8 +67,18 @@ export default function Settings() {
       );
 
     if (error) {
-      console.error('[v0] Error saving settings:', error.message);
-      setMessage({ type: 'error', text: 'Erro ao guardar configuracoes.' });
+      console.error('[v0] Error saving settings:', error);
+      const isMissingTable =
+        error.code === '42P01' ||
+        error.message?.toLowerCase().includes('site_settings') ||
+        error.message?.toLowerCase().includes('relation') ||
+        error.message?.toLowerCase().includes('does not exist');
+      setMessage({
+        type: 'error',
+        text: isMissingTable
+          ? 'A tabela "site_settings" nao existe na base de dados. Execute o script SQL em scripts/001_create_site_settings.sql no Supabase SQL Editor.'
+          : `Erro ao guardar: ${error.message || 'desconhecido'}`,
+      });
     } else {
       setMessage({ type: 'success', text: 'Configuracoes guardadas com sucesso!' });
     }
