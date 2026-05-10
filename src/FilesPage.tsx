@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { motion } from 'motion/react';
 import {
@@ -26,7 +26,8 @@ import { formatBytes, formatDateTime, getFileStatus } from './lib/types';
 export default function FilesPage() {
   const { appId } = useParams<{ appId: string }>();
   const { rows, loading } = useVpnFiles();
-  const { wrap: wrapWithShortener } = useShortener();
+  const { shorten, hasToken } = useShortener();
+  const [shorteningId, setShorteningId] = useState<string | null>(null);
 
   const selectedApp = apps.find((a) => a.id === appId) || apps[0];
   const files = useMemo(
@@ -43,6 +44,21 @@ export default function FilesPage() {
     supabase.rpc('increment_download', { file_id: id }).then(({ error }) => {
       if (error) console.error('[v0] increment_download error:', error.message);
     });
+  };
+
+  const handleDownloadClick = async (fileId: string, fileLink: string) => {
+    // Always count the download attempt.
+    handleDownload(fileId);
+
+    if (!hasToken) {
+      window.open(fileLink, '_blank', 'noopener,noreferrer');
+      return;
+    }
+
+    setShorteningId(fileId);
+    const shortened = await shorten(fileLink);
+    setShorteningId(null);
+    window.open(shortened || fileLink, '_blank', 'noopener,noreferrer');
   };
 
   const getStatusBadge = (status: string) => {
@@ -211,20 +227,27 @@ export default function FilesPage() {
                           <Key className="w-3.5 h-3.5" /> PASS
                         </button>
                       )}
-                      <a
-                        href={isExpired ? undefined : wrapWithShortener(file.link)}
-                        target="_blank"
-                        rel="noreferrer"
-                        onClick={() => !isExpired && handleDownload(file.id)}
+                      <button
+                        type="button"
+                        disabled={isExpired || shorteningId === file.id}
+                        onClick={() => handleDownloadClick(file.id, file.link)}
                         className={`py-2.5 px-5 rounded-lg font-black text-[11px] flex items-center gap-2 transition-colors ${
                           isExpired
                             ? 'bg-gray-600 text-gray-400 cursor-not-allowed'
-                            : 'bg-cyan-400 text-black hover:bg-white'
+                            : 'bg-cyan-400 text-black hover:bg-white disabled:opacity-70 disabled:cursor-wait'
                         }`}
                       >
-                        <Download className="w-3.5 h-3.5" />
-                        {isExpired ? 'EXPIRADO' : 'DOWNLOAD'}
-                      </a>
+                        {shorteningId === file.id ? (
+                          <>
+                            <Loader2 className="w-3.5 h-3.5 animate-spin" /> A PREPARAR...
+                          </>
+                        ) : (
+                          <>
+                            <Download className="w-3.5 h-3.5" />
+                            {isExpired ? 'EXPIRADO' : 'DOWNLOAD'}
+                          </>
+                        )}
+                      </button>
                     </div>
                   </div>
                 </motion.div>
