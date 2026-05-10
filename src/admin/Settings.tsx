@@ -2,10 +2,16 @@ import { useState, useEffect } from 'react';
 import { Settings as SettingsIcon, Save, Loader2, Link2, ExternalLink } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 
-const SETTING_KEY = 'shrinkme_url';
+const SETTING_KEY = 'shrinkme_token';
+const LEGACY_URL_KEY = 'shrinkme_url';
+
+function extractTokenFromLegacyUrl(value: string): string {
+  const match = value.match(/[?&]api=([a-zA-Z0-9]+)/);
+  return match ? match[1] : '';
+}
 
 export default function Settings() {
-  const [shrinkmeUrl, setShrinkmeUrl] = useState('');
+  const [shrinkmeToken, setShrinkmeToken] = useState('');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
@@ -16,7 +22,8 @@ export default function Settings() {
 
   const fetchSettings = async () => {
     setLoading(true);
-    // Try the new key first, fall back to the legacy adfly_url so existing data is preserved.
+
+    // Preferred: read the token directly.
     const { data, error } = await supabase
       .from('site_settings')
       .select('value')
@@ -28,15 +35,18 @@ export default function Settings() {
     }
 
     if (data?.value) {
-      setShrinkmeUrl(data.value || '');
+      setShrinkmeToken(String(data.value).trim());
     } else {
-      // Legacy fallback: read old adfly_url if present so the admin can review/migrate it.
+      // Backwards-compat: try to extract a token from a previously saved URL.
       const { data: legacy } = await supabase
         .from('site_settings')
         .select('value')
-        .eq('key', 'adfly_url')
+        .eq('key', LEGACY_URL_KEY)
         .single();
-      if (legacy?.value) setShrinkmeUrl(legacy.value);
+      if (legacy?.value) {
+        const t = extractTokenFromLegacyUrl(String(legacy.value));
+        if (t) setShrinkmeToken(t);
+      }
     }
     setLoading(false);
   };
@@ -48,7 +58,11 @@ export default function Settings() {
     const { error } = await supabase
       .from('site_settings')
       .upsert(
-        { key: SETTING_KEY, value: shrinkmeUrl, updated_at: new Date().toISOString() },
+        {
+          key: SETTING_KEY,
+          value: shrinkmeToken.trim(),
+          updated_at: new Date().toISOString(),
+        },
         { onConflict: 'key' }
       );
 
@@ -93,8 +107,8 @@ export default function Settings() {
             <div>
               <h2 className="text-lg font-bold mb-1">Configuracao ShrinkMe</h2>
               <p className="text-xs text-gray-500 leading-relaxed">
-                Configure o URL base do ShrinkMe.io para monetizar os cliques em &quot;Ver
-                ficheiros&quot; e nos botoes DOWNLOAD. O destino e adicionado automaticamente.
+                Cole apenas o seu API Token do ShrinkMe.io. O site chama a API para gerar links
+                curtos em tempo real ao clicar em &quot;Ver ficheiros&quot; e DOWNLOAD.
               </p>
             </div>
           </div>
@@ -102,38 +116,33 @@ export default function Settings() {
           <div className="space-y-4">
             <div>
               <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">
-                URL Base ShrinkMe
+                API Token ShrinkMe
               </label>
               <input
                 type="text"
-                value={shrinkmeUrl}
-                onChange={(e) => setShrinkmeUrl(e.target.value)}
-                placeholder="https://shrinkme.io/full?api=SEU_TOKEN&url="
-                className="w-full bg-[#161c26] border border-white/10 rounded-xl px-4 py-3 text-sm placeholder-gray-600 focus:outline-none focus:border-cyan-400/50 transition-colors"
+                value={shrinkmeToken}
+                onChange={(e) => setShrinkmeToken(e.target.value)}
+                placeholder="ex: 7cdb7ca63ac4f55cbc9f1921fb28b317261d1173"
+                className="w-full bg-[#161c26] border border-white/10 rounded-xl px-4 py-3 text-sm font-mono placeholder-gray-600 focus:outline-none focus:border-cyan-400/50 transition-colors"
               />
               <p className="text-[10px] text-gray-600 mt-2">
-                Exemplo: https://shrinkme.io/full?api=SEU_TOKEN&url= (o destino sera adicionado
-                automaticamente)
+                Apenas o token (sequencia de letras/numeros). Sem &quot;https://&quot; nem
+                &quot;?api=&quot;.
               </p>
             </div>
 
             <div className="bg-white/[0.02] border border-white/5 rounded-xl p-4">
               <h3 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2 flex items-center gap-2">
-                <ExternalLink className="w-3 h-3" /> Como configurar
+                <ExternalLink className="w-3 h-3" /> Como obter o token
               </h3>
               <ol className="text-xs text-gray-500 space-y-1.5 list-decimal list-inside">
                 <li>Crie uma conta em shrinkme.io</li>
-                <li>
-                  Va a Tools {'->'} Developer API e copie o seu API Token
-                </li>
-                <li>
-                  Cole o URL no formato: https://shrinkme.io/full?api=SEU_TOKEN&url=
-                </li>
-                <li>Guarde - o site vai usar este URL para encurtar todos os links</li>
+                <li>No painel, abra Tools {'->'} Developer API</li>
+                <li>Copie o valor do campo &quot;API Token&quot;</li>
+                <li>Cole aqui em cima e clique em Guardar</li>
               </ol>
               <p className="text-[10px] text-gray-600 mt-3 leading-relaxed">
-                Tambem aceita outros encurtadores compativeis (AdFly, ouo.io, etc) desde que sigam
-                o padrao &quot;...?url=&quot; ou &quot;...?api=TOKEN&amp;url=&quot;.
+                Deixe vazio para desactivar o encurtador (downloads passam a ser directos).
               </p>
             </div>
           </div>

@@ -54,7 +54,8 @@ type Comment = {
 export default function App() {
   const { rows } = useVpnFiles();
   const navigate = useNavigate();
-  const { wrap: wrapWithShortener } = useShortener();
+  const { shorten, hasToken } = useShortener();
+  const [redirecting, setRedirecting] = useState<string | null>(null);
   const [comments, setComments] = useState<Comment[]>([]);
   const [commentName, setCommentName] = useState('');
   const [commentContent, setCommentContent] = useState('');
@@ -80,15 +81,21 @@ export default function App() {
     return m;
   }, [rows]);
 
-  const handleViewFiles = (appId: string) => {
+  const handleViewFiles = async (appId: string) => {
+    if (!hasToken) {
+      navigate(`/files/${appId}`);
+      return;
+    }
     const targetUrl = `${window.location.origin}/files/${appId}`;
-    const shortened = wrapWithShortener(targetUrl);
-    if (shortened !== targetUrl) {
-      // Shortener configured - go through it
+    setRedirecting(appId);
+    const shortened = await shorten(targetUrl);
+    if (shortened && shortened !== targetUrl) {
       window.location.href = shortened;
     } else {
+      // API failed - go directly so the user is never blocked.
       navigate(`/files/${appId}`);
     }
+    setRedirecting(null);
   };
 
   const handleSubmitComment = async (e: React.FormEvent) => {
@@ -223,9 +230,18 @@ export default function App() {
                 </span>
                 <button
                   onClick={() => handleViewFiles(app.id)}
-                  className="flex items-center gap-1 text-[11px] font-bold text-cyan-400 bg-cyan-400/10 px-4 py-2 rounded-lg border border-cyan-400/20 hover:bg-cyan-400 hover:text-black transition-all"
+                  disabled={redirecting === app.id}
+                  className="flex items-center gap-1 text-[11px] font-bold text-cyan-400 bg-cyan-400/10 px-4 py-2 rounded-lg border border-cyan-400/20 hover:bg-cyan-400 hover:text-black transition-all disabled:opacity-60 disabled:cursor-wait"
                 >
-                  Ver ficheiros <ChevronRight className="w-3.5 h-3.5" />
+                  {redirecting === app.id ? (
+                    <>
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" /> A redirecionar...
+                    </>
+                  ) : (
+                    <>
+                      Ver ficheiros <ChevronRight className="w-3.5 h-3.5" />
+                    </>
+                  )}
                 </button>
               </div>
             </motion.div>
