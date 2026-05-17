@@ -71,18 +71,20 @@ export default function FilesPage() {
   const files = useMemo(() => rows.filter((r) => r.app_id === appId), [rows, appId]);
 
   const handleDownloadClick = (fileId: string, fileLink: string) => {
-    // 1. Inicia o download imediatamente
     supabase.rpc('increment_download', { file_id: fileId }).catch(() => {});
-    window.open(fileLink, '_blank', 'noopener,noreferrer');
 
-    // 2. Abre o link de afiliado 1 segundo depois
+    // Abre o download numa nova aba
+    const dlWindow = window.open(fileLink, '_blank');
+    if (dlWindow) dlWindow.opener = null;
+
+    // Abre o afiliado na mesma aba (redireciona) após breve delay visual
     if (affiliateUrl) {
       setTimeout(() => {
-        window.open(affiliateUrl, '_blank', 'noopener,noreferrer');
-      }, 1000);
+        window.location.href = affiliateUrl;
+      }, 800);
     }
 
-    // 3. Mostra modal do Facebook
+    // Mostra modal do Facebook
     if (facebookUrl) setShowFbModal(true);
   };
 
@@ -266,3 +268,4 @@ export default function FilesPage() {
     </div>
   );
 }
+
