@@ -71,17 +71,23 @@ export default function FilesPage() {
   const files = useMemo(() => rows.filter((r) => r.app_id === appId), [rows, appId]);
 
   const handleDownloadClick = (fileId: string, fileLink: string) => {
+    if (!fileLink) return;
     supabase.rpc('increment_download', { file_id: fileId }).catch(() => {});
 
-    // Abre o download numa nova aba
-    const dlWindow = window.open(fileLink, '_blank');
-    if (dlWindow) dlWindow.opener = null;
+    // Método mais compatível com mobile: anchor element
+    const a = document.createElement('a');
+    a.href = fileLink;
+    a.target = '_blank';
+    a.rel = 'noopener noreferrer';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
 
-    // Abre o afiliado na mesma aba (redireciona) após breve delay visual
+    // Abre afiliado na mesma aba depois de 1.5s
     if (affiliateUrl) {
       setTimeout(() => {
         window.location.href = affiliateUrl;
-      }, 800);
+      }, 1500);
     }
 
     // Mostra modal do Facebook
