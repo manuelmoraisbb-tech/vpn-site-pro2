@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { useMemo, useState, useEffect, useRef } from 'react';
+import { useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { motion } from 'motion/react';
 import {
@@ -15,8 +15,6 @@ import { useApps } from './hooks/useApps';
 import { useSiteSettings } from './hooks/useSiteSettings';
 import { supabase } from './lib/supabase';
 import { formatBytes, formatDateTime, getFileStatus, getAppColorClasses } from './lib/types';
-
-const PENDING_KEY = 'vpn_pending_download';
 
 // Modal "Segue no Facebook"
 function FacebookModal({ url, onClose }: { url: string; onClose: () => void }) {
@@ -65,7 +63,6 @@ export default function FilesPage() {
   const { apps } = useApps();
   const { settings } = useSiteSettings(['aliexpress_affiliate_url', 'facebook_page_url']);
 
-  const [waitingReturn, setWaitingReturn] = useState<string | null>(null);
   const [showFbModal, setShowFbModal] = useState(false);
   const affiliateUrl = settings['aliexpress_affiliate_url'] || '';
   const facebookUrl = settings['facebook_page_url'] || '';
@@ -73,62 +70,36 @@ export default function FilesPage() {
   const selectedApp = apps.find((a) => a.id === appId) ?? apps[0];
   const files = useMemo(() => rows.filter((r) => r.app_id === appId), [rows, appId]);
 
-  // ─── Affiliate / pending download logic ─────────────────────────────────────
-  const triggerDownload = (link: string, id: string) => {
-    supabase.rpc('increment_download', { file_id: id }).catch(() => {});
-    window.open(link, '_blank', 'noopener,noreferrer');
+  const handleDownloadClick = async (fileId: string, fileLink: string) => {
+    if (!fileLink) return;
+    supabase.rpc('increment_download', { file_id: fileId }).catch(() => {});
+
+    try {
+      // Fetch + blob: único método que força download de ficheiros cross-origin
+      const response = await fetch(fileLink);
+      const blob = await response.blob();
+      const blobUrl = URL.createObjectURL(blob);
+      const fileName = decodeURIComponent(fileLink.split('/').pop()?.split('?')[0] || 'download');
+
+      const a = document.createElement('a');
+      a.href = blobUrl;
+      a.download = fileName;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTimeout(() => URL.revokeObjectURL(blobUrl), 5000);
+    } catch {
+      // Fallback se o fetch falhar
+      window.open(fileLink, '_blank');
+    }
+
+    // Mostra modal do Facebook
     if (facebookUrl) setShowFbModal(true);
-  };
 
-  // On mount: check if user is returning from affiliate (sessionStorage pending)
-  useEffect(() => {
-    const raw = sessionStorage.getItem(PENDING_KEY);
-    if (raw) {
-      try {
-        const { id, link } = JSON.parse(raw) as { id: string; link: string };
-        sessionStorage.removeItem(PENDING_KEY);
-        setWaitingReturn(null);
-        triggerDownload(link, id);
-      } catch {
-        sessionStorage.removeItem(PENDING_KEY);
-      }
+    // Redireciona para o afiliado após 2 segundos
+    if (affiliateUrl) {
+      setTimeout(() => { window.location.href = affiliateUrl; }, 2000);
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [facebookUrl]);
-
-  // visibilitychange: detect when user switches back to this tab
-  const waitingRef = useRef(waitingReturn);
-  useEffect(() => { waitingRef.current = waitingReturn; }, [waitingReturn]);
-
-  useEffect(() => {
-    const onVisible = () => {
-      if (document.visibilityState !== 'visible') return;
-      const raw = sessionStorage.getItem(PENDING_KEY);
-      if (!raw) return;
-      try {
-        const { id, link } = JSON.parse(raw) as { id: string; link: string };
-        sessionStorage.removeItem(PENDING_KEY);
-        setWaitingReturn(null);
-        triggerDownload(link, id);
-      } catch {
-        sessionStorage.removeItem(PENDING_KEY);
-      }
-    };
-    document.addEventListener('visibilitychange', onVisible);
-    return () => document.removeEventListener('visibilitychange', onVisible);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [facebookUrl]);
-
-  const handleDownloadClick = (fileId: string, fileLink: string) => {
-    if (!affiliateUrl) {
-      // Sem link de afiliado: download direto
-      triggerDownload(fileLink, fileId);
-      return;
-    }
-    // Guardar download pendente e abrir afiliado
-    sessionStorage.setItem(PENDING_KEY, JSON.stringify({ id: fileId, link: fileLink }));
-    setWaitingReturn(fileId);
-    window.open(affiliateUrl, '_blank', 'noopener,noreferrer');
   };
 
   const handleCopyPass = (pass: string) => {
@@ -190,39 +161,6 @@ export default function FilesPage() {
           </div>
         )}
 
-        {/* Waiting banner */}
-        {waitingReturn && affiliateUrl && (
-          <motion.div
-            initial={{ opacity: 0, y: -10 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="bg-amber-500/10 border border-amber-500/30 rounded-2xl p-4 mb-6 flex items-center justify-between gap-4"
-          >
-            <div className="flex items-center gap-3">
-              <Loader2 className="w-5 h-5 text-amber-400 animate-spin shrink-0" />
-              <p className="text-sm text-amber-300 font-medium">
-                A aguardar o teu regresso... Quando voltares, o download inicia automaticamente.
-              </p>
-            </div>
-            <button
-              onClick={() => {
-                const raw = sessionStorage.getItem(PENDING_KEY);
-                if (raw) {
-                  try {
-                    const { id, link } = JSON.parse(raw);
-                    sessionStorage.removeItem(PENDING_KEY);
-                    setWaitingReturn(null);
-                    triggerDownload(link, id);
-                  } catch { sessionStorage.removeItem(PENDING_KEY); }
-                }
-                setWaitingReturn(null);
-              }}
-              className="shrink-0 text-[11px] font-bold text-black bg-amber-400 px-4 py-2 rounded-lg hover:bg-amber-300 transition-colors"
-            >
-              Continuar Download
-            </button>
-          </motion.div>
-        )}
-
         {/* Files List */}
         {loading ? (
           <div className="flex flex-col items-center justify-center py-20 text-gray-500">
@@ -242,8 +180,6 @@ export default function FilesPage() {
             {files.map((file, i) => {
               const status = getFileStatus(file);
               const isExpired = status === 'expired';
-              const isWaiting = waitingReturn === file.id;
-
               return (
                 <motion.div
                   key={file.id}
@@ -312,19 +248,15 @@ export default function FilesPage() {
                       )}
                       <button
                         type="button"
-                        disabled={isExpired || isWaiting}
+                        disabled={isExpired}
                         onClick={() => handleDownloadClick(file.id, file.link)}
                         className={`py-2.5 px-5 rounded-lg font-black text-[11px] flex items-center gap-2 transition-colors ${
                           isExpired
                             ? 'bg-gray-600 text-gray-400 cursor-not-allowed'
-                            : isWaiting
-                            ? 'bg-amber-400/20 text-amber-400 border border-amber-400/30 cursor-wait'
                             : 'bg-cyan-400 text-black hover:bg-white'
                         }`}
                       >
-                        {isWaiting ? (
-                          <><Loader2 className="w-3.5 h-3.5 animate-spin" /> A AGUARDAR...</>
-                        ) : isExpired ? (
+                        {isExpired ? (
                           <><Download className="w-3.5 h-3.5" /> EXPIRADO</>
                         ) : (
                           <><Download className="w-3.5 h-3.5" /> DOWNLOAD</>
@@ -350,3 +282,4 @@ export default function FilesPage() {
     </div>
   );
 }
+
